@@ -1,7 +1,8 @@
+# Raspberry Pi 5 configuration for AutonomOS
 header:
   version: 20
   includes:
-    - includes/raspberrypi.yaml
+    - includes/platforms/raspberrypi.yaml
 
 machine: raspberrypi5
 

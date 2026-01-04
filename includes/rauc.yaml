@@ -1,0 +1,8 @@
+header:
+  version: 20
+
+repos:
+  meta-rauc:
+    url: https://github.com/rauc/meta-rauc.git
+    path: "sources/meta-rauc"
+    branch: scarthgap

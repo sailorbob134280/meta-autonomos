@@ -1,3 +1,5 @@
+# Raspberry Pi common configuration for AutonomOS
+# Include this for all Raspberry Pi platforms, then include the machine-specific file.
 header:
   version: 20
 
@@ -12,19 +14,27 @@ repos:
     branch: scarthgap/u-boot
     path: "sources/meta-lts-mixins"
 
-  meta-mender-community:
-    url: "https://github.com/mendersoftware/meta-mender-community.git"
-    path: "sources/meta-mender-community"
+  meta-rauc-community:
+    url: "https://github.com/rauc/meta-rauc-community.git"
+    path: "sources/meta-rauc-community"
+    branch: scarthgap
     layers:
-      meta-mender-raspberrypi:
+      meta-rauc-raspberrypi:
+
+  # Add the Raspberry Pi platform layer
+  meta-autonomos:
+    layers:
+      meta-autonomos-raspberrypi:
 
 local_conf_header:
   raspberrypi: |
     RPI_USE_U_BOOT = "1"
     ENABLE_UART = "1"
-    MENDER_BOOT_PART_SIZE_MB = "200"
-    MENDER_STORAGE_TOTAL_SIZE_MB = "10000"
     MACHINE_FEATURES:append = " serial wifi bluetooth"
     IMAGE_INSTALL:append = " kernel-image kernel-devicetree"
     IMAGE_FSTYPES:remove = " rpi-sdimg"
     LICENSE_FLAGS_ACCEPTED = "synaptics-killswitch"
+
+  rauc-wks: |
+    WKS_FILE = "autonomos-dual-raspberrypi.wks.in"
+    IMAGE_FSTYPES:append = " wic wic.bz2 wic.bmap ext4"

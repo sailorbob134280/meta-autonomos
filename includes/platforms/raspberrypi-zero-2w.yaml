@@ -1,7 +1,8 @@
+# Raspberry Pi Zero 2W configuration for AutonomOS
 header:
   version: 20
   includes:
-    - includes/raspberrypi.yaml
+    - includes/platforms/raspberrypi.yaml
 
 machine: raspberrypi0-2w-64
 

@@ -4,7 +4,7 @@
 header:
   version: 20
   includes:
-    - includes/mender.yaml
+    - includes/rauc.yaml
 
 ############
 # DEFAULTS #

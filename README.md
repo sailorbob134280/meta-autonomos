@@ -1,21 +1,206 @@
 # AutonomOS
 
-AutonomOS is a starter operating system designed for general-purpose embedded Linux systems. It provides a minimal environment with feature classes to enable the most general and common use cases, and integrates Mender support for OTA updates.
+AutonomOS is a robust Yocto-based Linux distribution designed for embedded systems with full OTA (Over-The-Air) update capability. It provides a minimal, secure environment with modular feature groups and A/B partition updates via RAUC.
+
+## Key Features
+
+- **A/B Partition Updates**: Robust OTA updates with automatic rollback via RAUC
+- **Modular Architecture**: Platform-agnostic core with separate platform layers
+- **Feature Groups**: Easy-to-enable feature sets (containers, Kubernetes, shell tools)
+- **Delta Updates**: Efficient bandwidth usage with casync chunk-based updates
+- **Persistent Storage**: Dedicated `/data` partition survives updates
 
 ## Hardware Support
 
-AutonomOS currently supports the following hardware platforms:
+AutonomOS supports multiple hardware platforms through dedicated platform layers:
 
-- Raspberry Pi 5
-- Raspberry Pi Zero 2 W
-- BeagleBone Blue
+| Platform              | Layer                      | Status      |
+| --------------------- | -------------------------- | ----------- |
+| Raspberry Pi 5        | meta-autonomos-raspberrypi | Supported   |
+| Raspberry Pi Zero 2 W | meta-autonomos-raspberrypi | Supported   |
+| BeagleBone Blue       | meta-autonomos-beaglebone  | Placeholder |
 
-## Features
+## Layer Structure
 
-- Containerization with Docker
-- Kubernetes
-- Development variants with additional shell tools, such as vim and tmux
+```
+meta-autonomos/
+├── meta-autonomos-core/           # Platform-agnostic core (priority 6)
+│   ├── classes/
+│   │   ├── autonomos-features.bbclass
+│   │   └── autonomos-rauc.bbclass
+│   ├── recipes-core/
+│   │   ├── base-files/            # /data mount, shell config
+│   │   ├── bundles/               # RAUC update bundle
+│   │   ├── data-partition-resize/
+│   │   ├── packagegroups/
+│   │   └── rauc/                  # RAUC keyring config
+│   ├── recipes-images/
+│   ├── recipes-shells/            # zsh, oh-my-zsh, plugins
+│   ├── recipes-containers/        # Docker, k3s
+│   ├── recipes-connectivity/      # Network config
+│   └── files/rauc-example-keys/   # Development signing keys
+│
+├── meta-autonomos-raspberrypi/    # Raspberry Pi support (priority 7)
+│   ├── wic/                       # Partition layout
+│   ├── recipes-core/
+│   │   ├── rauc/                  # RPi-specific system.conf
+│   │   └── base-files/            # RPi-specific fstab
+│   └── recipes-kernel/            # Kernel config fragments
+│
+├── meta-autonomos-beaglebone/     # BeagleBone support (priority 7)
+│   ├── wic/
+│   └── recipes-core/rauc/
+│
+└── includes/                      # KAS configuration includes
+    ├── base.yaml                  # Core repos and layers
+    ├── rauc.yaml                  # RAUC repo
+    └── platforms/
+        ├── raspberrypi.yaml       # Common RPi config
+        ├── raspberrypi-5.yaml     # RPi 5 machine
+        ├── raspberrypi-zero-2w.yaml
+        └── beaglebone-blue.yaml
+```
 
 ## Getting Started
 
-To get started with AutonomOS, create a Kas configuration file based on the `reference.yaml` file and `secrets.yaml.tmpl` template provided in this repository. Customize the configuration as needed for your specific hardware and requirements. Additional features and machines are available in the `includes` directory.
+### Basic Configuration
+
+Create a KAS configuration file for your project:
+
+```yaml
+header:
+  version: 20
+  includes:
+    - repo: meta-autonomos
+      file: includes/base.yaml
+    - repo: meta-autonomos
+      file: includes/platforms/raspberrypi-5.yaml
+    - secrets.yaml # WiFi credentials, etc.
+
+build_system: oe
+distro: autonomos
+target:
+  - autonomos-devel
+  - update-bundle
+
+repos:
+  meta-autonomos:
+    url: "https://github.com/sailorbob134280/meta-autonomos"
+    branch: "main"
+    path: "sources/meta-autonomos"
+    layers:
+      meta-autonomos-core:
+
+local_conf_header:
+  features: |
+    AUTONOMOS_FEATURES = "shellplus containers"
+```
+
+### Available Feature Groups
+
+Enable features by adding them to `AUTONOMOS_FEATURES`:
+
+| Feature      | Description                                                           |
+| ------------ | --------------------------------------------------------------------- |
+| `shellplus`  | Enhanced shell (zsh, oh-my-zsh, syntax highlighting, autosuggestions) |
+| `containers` | Docker container runtime                                              |
+| `kubernetes` | k3s lightweight Kubernetes                                            |
+
+Example:
+
+```yaml
+local_conf_header:
+  features: |
+    AUTONOMOS_FEATURES = "shellplus containers kubernetes"
+```
+
+## OTA Updates with RAUC
+
+### Partition Layout
+
+AutonomOS uses a 4-partition A/B layout:
+
+| Partition     | Mount | Size      | Purpose                   |
+| ------------- | ----- | --------- | ------------------------- |
+| p1 (boot)     | /boot | 200MB     | Kernel, DTB, boot files   |
+| p2 (rootfs-a) | /     | 2GB       | Primary rootfs (slot A)   |
+| p3 (rootfs-b) | -     | 2GB       | Secondary rootfs (slot B) |
+| p4 (data)     | /data | Remaining | Persistent storage        |
+
+### Building Update Bundles
+
+Add `update-bundle` to your targets:
+
+```yaml
+target:
+  - autonomos-devel
+  - update-bundle
+```
+
+The bundle will be at: `tmp-<machine>/deploy/images/<machine>/update-bundle-<machine>.raucb`
+
+### Configuring Signing Keys
+
+For production, configure your own signing keys:
+
+```yaml
+local_conf_header:
+  rauc-keys: |
+    AUTONOMOS_RAUC_KEY_DIR = "/path/to/keys"
+    AUTONOMOS_RAUC_KEYRING_FILE = "production.cert.pem"
+    AUTONOMOS_RAUC_KEY_FILE = "production.key.pem"
+    AUTONOMOS_RAUC_CERT_FILE = "production.cert.pem"
+```
+
+**Key Variables:**
+
+| Variable                      | Default                | Description                  |
+| ----------------------------- | ---------------------- | ---------------------------- |
+| `AUTONOMOS_RAUC_KEY_DIR`      | (unset)                | Directory containing keys    |
+| `AUTONOMOS_RAUC_KEYRING_FILE` | `development.cert.pem` | Certificate for verification |
+| `AUTONOMOS_RAUC_KEY_FILE`     | `development.key.pem`  | Private key for signing      |
+| `AUTONOMOS_RAUC_CERT_FILE`    | `development.cert.pem` | Certificate for signing      |
+
+If `AUTONOMOS_RAUC_KEY_DIR` is not set, development keys from the core layer are used.
+
+### Installing Updates
+
+On the target device:
+
+```bash
+# Check current slot status
+rauc status
+
+# Install an update
+rauc install /path/to/update-bundle.raucb
+
+# The system will boot into the updated slot on next reboot
+reboot
+```
+
+## Secrets Configuration
+
+Create a `secrets.yaml` file (do not commit to version control):
+
+```yaml
+local_conf_header:
+  wifi: |
+    WPA_SSID = "YourNetwork"
+    WPA_PSK = "YourPassword"
+```
+
+Use the provided `secrets.yaml.tmpl` as a template.
+
+## Adding New Platforms
+
+1. Create a new platform layer: `meta-autonomos-<platform>/`
+2. Add `conf/layer.conf` with appropriate dependencies
+3. Create platform-specific recipes:
+   - `wic/<platform>.wks.in` - Partition layout
+   - `recipes-core/rauc/files/<machine>/system.conf` - RAUC slot config
+   - `recipes-core/base-files/files/fstab` - Mount points
+4. Create KAS include in `includes/platforms/<platform>.yaml`
+
+## License
+
+See individual recipe files for license information.

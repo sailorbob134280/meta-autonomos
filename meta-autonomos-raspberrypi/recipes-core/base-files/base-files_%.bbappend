@@ -1,10 +1,11 @@
-# base-files bbappend for AutonomOS (platform-agnostic)
+# base-files bbappend for AutonomOS Raspberry Pi platforms
 #
-# 1. Changes root's default shell from /bin/sh to /bin/zsh for shellplus feature
-# 2. Creates /data mount point for persistent storage
-#
-# Note: Platform-specific fstab files are provided by platform layers
-# (e.g., meta-autonomos-raspberrypi)
+# 1. Provides custom fstab for our 4-partition A/B layout (overrides meta-rauc-raspberrypi)
+# 2. Changes root's default shell from /bin/sh to /bin/zsh for shellplus feature
+# 3. Creates /data mount point for persistent storage
+
+# Ensure our fstab takes precedence over meta-rauc-raspberrypi's
+FILESEXTRAPATHS:prepend := "${THISDIR}/files:"
 
 # This runs at image creation time to modify /etc/passwd
 # We change root's shell from /bin/sh to /bin/zsh
