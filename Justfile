@@ -91,9 +91,10 @@ flash device:
 # Directory for RAUC bundles
 rauc-bundle-dir := "build/bundles"
 
-# Development signing keys (override RAUC_CERT and RAUC_KEY for production)
+# Development signing keys (override RAUC_CERT, RAUC_KEY, RAUC_KEYRING for production)
 rauc-cert := env('RAUC_CERT', 'meta-autonomos-core/files/rauc-example-keys/development.cert.pem')
 rauc-key := env('RAUC_KEY', 'meta-autonomos-core/files/rauc-example-keys/development.key.pem')
+rauc-keyring := env('RAUC_KEYRING', 'meta-autonomos-core/files/rauc-example-keys/development.cert.pem')
 
 # Convert RAUC bundle to casync format for delta updates
 [group('ota')]
@@ -103,6 +104,7 @@ rauc-to-casync bundle:
     rauc convert \
         --cert={{rauc-cert}} \
         --key={{rauc-key}} \
+        --keyring={{rauc-keyring}} \
         {{bundle}} \
         {{rauc-bundle-dir}}/$(basename {{bundle}} .raucb).caibx
     echo "Created casync bundle at {{rauc-bundle-dir}}/$(basename {{bundle}} .raucb).caibx"
@@ -111,27 +113,68 @@ rauc-to-casync bundle:
 [group('ota')]
 [script('bash')]
 casync-diff old-store new-store:
-    comm -23 \
-        <(ls {{new-store}}/default.castr/ 2>/dev/null | sort) \
-        <(ls {{old-store}}/default.castr/ 2>/dev/null | sort)
+    NEW_CHUNKS=$(comm -23 \
+        <(find {{new-store}} -name '*.cacnk' -printf '%f\n' 2>/dev/null | sort) \
+        <(find {{old-store}} -name '*.cacnk' -printf '%f\n' 2>/dev/null | sort))
+    echo "$NEW_CHUNKS"
+    COUNT=$(echo "$NEW_CHUNKS" | grep -c . || true)
+    # Calculate size of new chunks
+    SIZE=0
+    for chunk in $NEW_CHUNKS; do
+        prefix="${chunk:0:4}"
+        if [ -f "{{new-store}}/$prefix/$chunk" ]; then
+            SIZE=$((SIZE + $(stat -c%s "{{new-store}}/$prefix/$chunk")))
+        fi
+    done
+    SIZE_MB=$((SIZE / 1024 / 1024))
+    # Output stats to stderr so they don't break pipelines
+    echo "" >&2
+    echo "Delta: $COUNT chunks, ${SIZE_MB}MB" >&2
 
-# Copy only new chunks to staging directory for upload
+# Package delta update: new chunks + bundle manifest into a tarball
+# Extract on device with: tar -xf update.tar.gz -C /data
 [group('ota')]
 [script('bash')]
-casync-stage-delta old-store new-store staging-dir:
-    mkdir -p {{staging-dir}}/default.castr
-    NEW_CHUNKS=$(just casync-diff {{old-store}} {{new-store}})
+casync-package-delta old-store new-store bundle output="update.tar.gz":
+    STAGING=$(mktemp -d)
+    trap "rm -rf $STAGING" EXIT
+
+    # Find new chunks
+    NEW_CHUNKS=$(comm -23 \
+        <(find {{new-store}} -name '*.cacnk' -printf '%f\n' 2>/dev/null | sort) \
+        <(find {{old-store}} -name '*.cacnk' -printf '%f\n' 2>/dev/null | sort))
+
+    # Stage chunks in updates.castr/
+    mkdir -p "$STAGING/updates.castr"
+    COUNT=0
+    SIZE=0
     for chunk in $NEW_CHUNKS; do
-        cp {{new-store}}/default.castr/$chunk {{staging-dir}}/default.castr/
+        prefix="${chunk:0:4}"
+        mkdir -p "$STAGING/updates.castr/$prefix"
+        cp "{{new-store}}/$prefix/$chunk" "$STAGING/updates.castr/$prefix/"
+        SIZE=$((SIZE + $(stat -c%s "{{new-store}}/$prefix/$chunk")))
+        COUNT=$((COUNT + 1))
     done
-    echo "Staged $(ls {{staging-dir}}/default.castr 2>/dev/null | wc -l) new chunks"
+
+    # Stage bundle manifest in rauc/
+    mkdir -p "$STAGING/rauc"
+    cp "{{bundle}}" "$STAGING/rauc/"
+
+    # Create tarball
+    tar -czf "{{output}}" -C "$STAGING" updates.castr rauc
+
+    SIZE_MB=$((SIZE / 1024 / 1024))
+    TARBALL_SIZE=$(du -h "{{output}}" | cut -f1)
+    echo "Packaged $COUNT chunks (${SIZE_MB}MB) + bundle manifest"
+    echo "Created {{output}} ($TARBALL_SIZE)"
+    echo "Deploy with: tar -xf {{output}} -C /data"
 
 # Show casync chunk store statistics
 [group('ota')]
 [script('bash')]
 casync-stats store:
-    CHUNKS=$(ls {{store}}/default.castr/ 2>/dev/null | wc -l)
-    SIZE=$(du -sh {{store}}/default.castr/ 2>/dev/null | cut -f1)
+    CHUNKS=$(find {{store}} -name '*.cacnk' 2>/dev/null | wc -l)
+    SIZE=$(du -sh {{store}} 2>/dev/null | cut -f1)
     echo "Chunks: $CHUNKS"
     echo "Size: $SIZE"
 

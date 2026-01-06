@@ -43,3 +43,4 @@ fi
 
 # Convenience aliases
 alias ll='ls -alh'
+alias switch-part="rauc status mark-active other && reboot"
