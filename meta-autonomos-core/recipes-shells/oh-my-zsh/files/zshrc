@@ -7,6 +7,13 @@
 # before this file is sourced, or by creating ~/.zshrc.local for
 # settings to apply after this file.
 
+# Source profile.d scripts for AutonomOS aliases and environment
+# (zsh doesn't source /etc/profile by default for interactive shells)
+for f in /etc/profile.d/*.sh; do
+    [ -r "$f" ] && . "$f"
+done
+unset f
+
 # Path to oh-my-zsh installation (system-wide)
 export ZSH=/etc/oh-my-zsh
 
@@ -40,7 +47,3 @@ HISTFILE=~/.zsh_history
 if [[ -f ~/.zshrc ]]; then
     source ~/.zshrc
 fi
-
-# Convenience aliases
-alias ll='ls -alh'
-alias switch-part="rauc status mark-active other && reboot"

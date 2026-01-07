@@ -16,4 +16,5 @@ tmpfs                /var/volatile        tmpfs      defaults              0  0
 /dev/mmcblk0p1       /boot                vfat       defaults              0  0
 
 # Persistent data partition (resized at first boot)
-LABEL=data           /data                ext4       defaults,noatime      0  2
+# nofail: boot continues in degraded state if /data unavailable
+LABEL=data           /data                ext4       defaults,noatime,nofail      0  2

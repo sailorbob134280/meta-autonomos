@@ -100,19 +100,81 @@ local_conf_header:
 
 Enable features by adding them to `AUTONOMOS_FEATURES`:
 
-| Feature      | Description                                                           |
-| ------------ | --------------------------------------------------------------------- |
-| `shellplus`  | Enhanced shell (zsh, oh-my-zsh, syntax highlighting, autosuggestions) |
-| `containers` | Docker container runtime                                              |
-| `kubernetes` | k3s lightweight Kubernetes                                            |
+| Feature            | Description                                                           |
+| ------------------ | --------------------------------------------------------------------- |
+| `shellplus`        | Enhanced shell (zsh, oh-my-zsh, syntax highlighting, autosuggestions) |
+| `containers`       | Docker container runtime                                              |
+| `kubernetes`       | k3s lightweight Kubernetes                                            |
+| `grow-data`        | Automatically expand /data partition to fill disk on first boot       |
+| `read-only-rootfs` | Immutable root filesystem with persistent /data (see below)           |
 
 Example:
 
 ```yaml
 local_conf_header:
   features: |
-    AUTONOMOS_FEATURES = "shellplus containers kubernetes"
+    AUTONOMOS_FEATURES = "shellplus containers grow-data read-only-rootfs"
 ```
+
+### Shell Aliases and Help
+
+AutonomOS includes built-in shell aliases available in all shells (bash, zsh). Run `halp` to see available commands:
+
+```bash
+halp    # Show quick reference of available commands
+ll      # List files (ls -alh)
+switch-part  # Switch RAUC slot and reboot
+```
+
+Each enabled feature adds its own aliases and help content. The `halp` output adapts based on which features are installed.
+
+### Read-Only Root Filesystem
+
+The `read-only-rootfs` feature makes the root filesystem immutable, improving reliability and security. All mutable state is stored on the persistent `/data` partition.
+
+**What gets persisted:**
+
+| Path               | Purpose                            |
+| ------------------ | ---------------------------------- |
+| `/etc/machine-id`  | Unique system ID (bind from /data) |
+| `/var/log/journal` | System logs (bind from /data)      |
+| `/var/lib/docker`  | Docker images/volumes (symlink)    |
+| `/data/*`          | All application data               |
+
+**Note:** When using `containers` with `read-only-rootfs`, Docker data is automatically persisted via symlink to `/data/docker`. Pulled images and created volumes survive reboots.
+
+**Configurable journal settings:**
+
+| Variable                         | Default   | Description                |
+| -------------------------------- | --------- | -------------------------- |
+| `AUTONOMOS_JOURNAL_MAX_SIZE`     | `64M`     | Total journal size cap     |
+| `AUTONOMOS_JOURNAL_MAX_FILE_SIZE`| `8M`      | Max size per journal file  |
+| `AUTONOMOS_JOURNAL_MAX_RETENTION`| `1month`  | Max age before rotation    |
+
+Example configuration:
+
+```yaml
+local_conf_header:
+  read-only: |
+    AUTONOMOS_FEATURES = "read-only-rootfs"
+    AUTONOMOS_JOURNAL_MAX_SIZE = "128M"
+    AUTONOMOS_JOURNAL_MAX_RETENTION = "2weeks"
+```
+
+**Development helpers:**
+
+```bash
+halp           # Show available commands and enabled features
+write-enable   # Temporarily make rootfs writable (read-only-rootfs only)
+write-disable  # Re-enable read-only protection (read-only-rootfs only)
+```
+
+The `halp` command displays a quick reference of available aliases based on which features are enabled. Each feature contributes its own help snippet.
+
+**Notes:**
+- SSH host keys are baked into the image at build time
+- DHCP works normally (systemd-networkd stores leases in tmpfs)
+- Package manager (opkg) will not work on read-only rootfs (use `write-enable` temporarily)
 
 ## OTA Updates with RAUC
 

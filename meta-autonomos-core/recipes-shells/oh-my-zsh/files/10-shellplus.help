@@ -1,0 +1,5 @@
+[Shell Plus]
+  Ctrl+R          - Search command history
+  Alt+L / Esc+L   - Accept autosuggestion
+  Tab             - Completion with menu
+  Plugins: autosuggestions, syntax-highlighting

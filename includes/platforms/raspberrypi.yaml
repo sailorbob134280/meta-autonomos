@@ -31,7 +31,7 @@ local_conf_header:
     RPI_USE_U_BOOT = "1"
     ENABLE_UART = "1"
     MACHINE_FEATURES:append = " serial wifi bluetooth"
-    IMAGE_INSTALL:append = " kernel-image kernel-devicetree"
+    IMAGE_INSTALL:append = " kernel-image kernel-devicetree packagegroup-autonomos-raspberrypi"
     IMAGE_FSTYPES:remove = " rpi-sdimg"
     LICENSE_FLAGS_ACCEPTED = "synaptics-killswitch"
 

@@ -15,6 +15,7 @@ LIC_FILES_CHKSUM = "file://LICENSE.txt;md5=032ae621cb533d73f6e84b6f9ee8a056"
 
 SRC_URI = "git://github.com/ohmyzsh/ohmyzsh.git;branch=master;protocol=https \
            file://zshrc \
+           file://10-shellplus.help \
           "
 SRCREV = "a79b37b95461ea2be32578957473375954ab31ff"
 PV = "1.0+git${SRCPV}"
@@ -48,9 +49,13 @@ do_install() {
 
     # Install system-wide zshrc to /etc/zshrc (where zsh looks for it)
     install -m 0644 ${WORKDIR}/zshrc ${D}${sysconfdir}/zshrc
+
+    # Help snippet for halp command
+    install -d ${D}${sysconfdir}/autonomos/help.d
+    install -m 0644 ${WORKDIR}/10-shellplus.help ${D}${sysconfdir}/autonomos/help.d/
 }
 
-FILES:${PN} = "${sysconfdir}/oh-my-zsh ${sysconfdir}/zshrc"
+FILES:${PN} = "${sysconfdir}/oh-my-zsh ${sysconfdir}/zshrc ${sysconfdir}/autonomos/help.d/10-shellplus.help"
 
 # Ensure proper permissions
 pkg_postinst:${PN}() {
